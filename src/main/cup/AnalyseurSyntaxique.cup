@@ -1,0 +1,182 @@
+/* package et imports */
+package fr.usmb.m1isc.compilation.tp;
+
+import java_cup.runtime.Symbol;
+import java.util.HashMap;
+import fr.usmb.m1isc.compilation.tp.ast.Node;
+import fr.usmb.m1isc.compilation.tp.ast.UnaryOpNode;
+import fr.usmb.m1isc.compilation.tp.ast.BinaryOpNode;
+import fr.usmb.m1isc.compilation.tp.ast.LetNode;
+import fr.usmb.m1isc.compilation.tp.ast.InputNode;
+import fr.usmb.m1isc.compilation.tp.ast.NilNode;
+import fr.usmb.m1isc.compilation.tp.ast.NumberNode;
+import fr.usmb.m1isc.compilation.tp.ast.OutputNode;
+import fr.usmb.m1isc.compilation.tp.ast.IdentNode;
+
+
+/* inclusion du code */
+
+action code {: 
+    private HashMap<String, Integer> vars = new HashMap<>();
+    private boolean erreur = false;
+:};
+
+parser code {:
+    public void report_error(String message, Object info) {
+        String m = "";
+        if (info instanceof java_cup.runtime.Symbol) {
+            Symbol s = ((Symbol) info);     
+            if (s != null && s.left >= 0) {
+                m = "Ligne " + (s.left + 1) + ", Colonne " + (s.right + 1) + " : ";
+            }
+        }
+        m = m + message;
+        System.err.println(m);
+    }
+:};
+
+init with {:
+    // Initialisation si nécessaire
+:};
+
+/* symboles terminaux */
+terminal PLUS, MOINS, MOINS_UNAIRE, MUL, DIV, MOD, NOT, OR, AND, PAR_G, PAR_D, SEMI, POINT, LET, INPUT, OUTPUT, IF, THEN, ELSE, WHILE, DO, EGAL, GT, GTE,LT, LTE, NIL, ERROR; 
+terminal Integer ENTIER;
+terminal String IDENT;
+
+/* non terminaux avec types explicites */
+non terminal Node program, sequence, expression, expr;
+
+/* Précédences */
+precedence nonassoc OUTPUT;
+precedence right OR;
+precedence right AND;
+precedence right NOT;
+precedence nonassoc EGAL;
+precedence nonassoc GT, GTE;
+precedence nonassoc LT, LTE;
+precedence left PLUS, MOINS;
+precedence left MUL, DIV, MOD;
+precedence left MOINS_UNAIRE;
+
+/* Grammaire */
+
+program ::= sequence:s POINT
+  {: 
+    RESULT = s;
+  :}
+;
+
+sequence ::= expression:e1 SEMI sequence:e2
+  {:
+    RESULT = new BinaryOpNode(";", e1, e2);
+  :}
+| expression:e
+  {:
+    RESULT = e;
+  :}
+| 
+  {:
+    RESULT = new NilNode();
+  :}
+;
+
+expression ::= LET IDENT:nom EGAL expr:e
+  {:
+    RESULT = new LetNode(nom, e);
+  :}
+| WHILE expr:cond DO expression:body
+  {:
+    RESULT = new BinaryOpNode("WHILE", cond, body);
+  :}
+| IF expr:cond THEN expression:a1 ELSE expression:a2
+  {:
+    RESULT = new BinaryOpNode("IF", cond, new BinaryOpNode("THEN_ELSE", a1, a2));
+  :}
+| expr:e
+  {:
+    RESULT = e;
+  :}
+;
+
+expr ::= NOT expr:e
+  {:
+    RESULT = new UnaryOpNode("NOT", e);
+  :}
+| expr:e1 AND expr:e2
+  {:
+    RESULT = new BinaryOpNode("AND", e1, e2);
+  :}
+| expr:e1 OR expr:e2
+  {:
+    RESULT = new BinaryOpNode("OR", e1, e2);
+  :}
+| expr:e1 EGAL expr:e2
+  {:
+    RESULT = new BinaryOpNode("==", e1, e2);
+  :}
+| expr:e1 GT expr:e2
+  {:
+    RESULT = new BinaryOpNode(">", e1, e2);
+  :}
+| expr:e1 GTE expr:e2
+  {:
+    RESULT = new BinaryOpNode(">=", e1, e2);
+  :}
+| expr:e1 LT expr:e2
+  {:
+    RESULT = new BinaryOpNode("<", e1, e2);
+  :}
+| expr:e1 LTE expr:e2
+  {:
+    RESULT = new BinaryOpNode("<=", e1, e2);
+  :}
+| expr:e1 PLUS expr:e2
+  {:
+    RESULT = new BinaryOpNode("+", e1, e2);
+  :}
+| expr:e1 MOINS expr:e2
+  {:
+    RESULT = new BinaryOpNode("-", e1, e2);
+  :}
+| expr:e1 MUL expr:e2
+  {:
+    RESULT = new BinaryOpNode("*", e1, e2);
+  :}
+| expr:e1 DIV expr:e2
+  {:
+    RESULT = new BinaryOpNode("/", e1, e2);
+  :}
+| expr:e1 MOD expr:e2
+  {:
+    RESULT = new BinaryOpNode("MOD", e1, e2);
+  :}
+| MOINS expr:e
+  {:
+    RESULT = new UnaryOpNode("-", e);
+  :} %prec MOINS_UNAIRE
+| OUTPUT expr:e
+  {:
+    RESULT = new OutputNode(e);
+  :}
+| INPUT
+  {:
+    RESULT = new InputNode();
+  :}
+| NIL
+  {:
+    RESULT = new NilNode();
+  :}
+| ENTIER:n
+  {:
+    RESULT = new NumberNode(n.intValue());
+  :}
+| IDENT:id
+  {:
+    RESULT = new IdentNode(id);
+  :}
+| PAR_G sequence:e PAR_D
+  {:
+    RESULT = e;
+  :}
+;
